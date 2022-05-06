@@ -78,81 +78,87 @@ char* makeNewImagePath(const char *imagePath, const char *suffix) {
     return newPath;
 }
 
-Image* Image_minSampling(Image *image, int downScale) {
+Image* Image_minSampling(Image *image, int filter) {
+    int stride = filter;
     char *spath= makeNewImagePath(image->path, "_min");
-    int swidth = image->width / downScale;
-    int sheight = image->height / downScale;
+    int swidth = (image->width-filter) / stride+1;
+    int sheight = (image->height-filter) / stride+1;
     int schannels = image->channels;
-    Image *imageMinSampling = Image_create(spath, swidth, sheight, schannels);
-    for(int i = 0; i < sheight; i++) {
-        for(int j = 0; j < swidth; j++) {
+    Image *imageSampling = Image_create(spath, swidth, sheight, schannels);
+    int n = 0;
+    for(int i = 0; i < image->height; i+=stride) {
+        for(int j = 0; j < image->width; j+=stride) {
             for(int k = 0; k < 3; k++) {
-                unsigned char min = 255;
-                for(int p = 0; p < downScale; p++) {
-                    for(int q = 0; q < downScale; q++) {
-                        unsigned char temp = image->data[(downScale * i + p) * image->width * image->channels + (downScale * j + q) * image->channels + k];
-                        if(min > temp) {
-                            min = temp;
+                int min = 255;
+                for(int p = 0; p < filter; p++) {
+                    for(int q = 0; q < filter; q++) {
+                        int idx = (i + p) * image->width * image->channels + (j + q) * image->channels + k;
+                        if(min > image->data[idx]) {
+                            min = image->data[idx];
                         }
                     }
                 }
-                imageMinSampling->data[i * swidth * schannels + j * schannels + k] = min;
+                imageSampling->data[n++] = min;
             }
         }
     }
     free(spath);
-    return imageMinSampling;
+    return imageSampling;
 }
 
-Image* Image_maxSampling(Image *image, int downScale) {
+Image* Image_maxSampling(Image *image, int filter) {
+    int stride = filter;
     char *spath= makeNewImagePath(image->path, "_max");
-    int swidth = image->width / downScale;
-    int sheight = image->height / downScale;
+    int swidth = (image->width-filter) / stride+1;
+    int sheight = (image->height-filter) / stride+1;
     int schannels = image->channels;
-    Image *imageMaxSampling = Image_create(spath, swidth, sheight, schannels);
-    for(int i = 0; i < sheight; i++) {
-        for(int j = 0; j < swidth; j++) {
+    Image *imageSampling = Image_create(spath, swidth, sheight, schannels);
+    int n = 0;
+    for(int i = 0; i < image->height; i+=stride) {
+        for(int j = 0; j < image->width; j+=stride) {
             for(int k = 0; k < 3; k++) {
-                unsigned char max = 0;
-                for(int p = 0; p < downScale; p++) {
-                    for(int q = 0; q < downScale; q++) {
-                        unsigned char temp = image->data[(downScale * i + p) * image->width * image->channels + (downScale * j + q) * image->channels + k];
-                        if(max < temp) {
-                            max = temp;
+                int max = 0;
+                for(int p = 0; p < filter; p++) {
+                    for(int q = 0; q < filter; q++) {
+                        int idx = (i + p) * image->width * image->channels + (j + q) * image->channels + k;
+                        if(max < image->data[idx]) {
+                            max = image->data[idx];
                         }
                     }
                 }
-                imageMaxSampling->data[i * swidth * schannels + j * schannels + k] = max;
+                imageSampling->data[n++] = max;
             }
         }
     }
     free(spath);
-    return imageMaxSampling;
+    return imageSampling;
 }
 
-Image* Image_avgSampling(Image *image, int downScale) {
+Image* Image_avgSampling(Image *image, int filter) {
+    int stride = filter;
     char *spath= makeNewImagePath(image->path, "_avg");
-    int swidth = image->width / downScale;
-    int sheight = image->height / downScale;
+    int swidth = (image->width-filter) / stride+1;
+    int sheight = (image->height-filter) / stride+1;
     int schannels = image->channels;
-    Image *imageAvgSampling = Image_create(spath, swidth, sheight, schannels);
-    for(int i = 0; i < sheight; i++) {
-        for(int j = 0; j < swidth; j++) {
+    Image *imageSampling = Image_create(spath, swidth, sheight, schannels);
+    int n = 0;
+    for(int i = 0; i < image->height; i+=stride) {
+        for(int j = 0; j < image->width; j+=stride) {
             for(int k = 0; k < 3; k++) {
                 int avg = 0;
-                for(int p = 0; p < downScale; p++) {
-                    for(int q = 0; q < downScale; q++) {
-                        unsigned char temp = image->data[(downScale * i + p) * image->width * image->channels + (downScale * j + q) * image->channels + k];
-                        avg += temp;
+                for(int p = 0; p < filter; p++) {
+                    for(int q = 0; q < filter; q++) {
+                        int idx = (i + p) * image->width * image->channels + (j + q) * image->channels + k;
+                        avg += image->data[idx];
                     }
                 }
-                avg /= (downScale * downScale);
-                imageAvgSampling->data[i * swidth * schannels + j * schannels + k] = avg;
+                avg /= (filter * filter);
+                imageSampling->data[n++] = avg;
             }
         }
     }
     free(spath);
-    return imageAvgSampling;
+    return imageSampling;
 }
 
 void Image_free(Image *image) {
@@ -164,8 +170,7 @@ void Image_free(Image *image) {
 
 int main(int argc, char **argv) {
     if(!(argc == 2 || argc == 3)) {
-        printf("Usage1 : <PROGRAM> <IMAGE_PATH>\n");
-        printf("Usage2 : <PROGRAM> <IMAGE_PATH> <DOWN_SCALE>\n");
+        printf("Usage : <PROGRAM> <IMAGE_PATH>\n");
         return -1;
     }
 
@@ -179,14 +184,10 @@ int main(int argc, char **argv) {
         return -1;
     }
     
-    int downScale = 2;
-    if(argc == 3) {
-        downScale = atoi(argv[2]);
-    }
-
-    Image* imageMinSampling = Image_minSampling(rimage, downScale);
-    Image* imageMaxSampling = Image_maxSampling(rimage, downScale);
-    Image* imageAvgSampling = Image_avgSampling(rimage, downScale);
+    int filter = 2;
+    Image* imageMinSampling = Image_minSampling(rimage, filter);
+    Image* imageMaxSampling = Image_maxSampling(rimage, filter);
+    Image* imageAvgSampling = Image_avgSampling(rimage, filter);
 
     Image_write(imageMinSampling);
     Image_write(imageMaxSampling);
